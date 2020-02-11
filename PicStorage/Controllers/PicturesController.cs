@@ -41,40 +41,14 @@ namespace PicStorage.Controllers
                 }
             }
         }
-        //// GET api/values
-        //[HttpGet]
-        //public ActionResult<IEnumerable<string>> Get()
-        //{
-        //    return new string[] { "value1", "value2" };
-        //}
-
-        // GET api/values/5
-        [HttpGet("{filename}")]
-        public async Task<IActionResult> Get(string filename)
-        {
-            try
-            {
-                if (filename == null) return BadRequest();
-                CloudBlockBlob blob = _blobContainer.GetBlockBlobReference(filename);
-                byte[] buf = new byte[4096];
-
-                var dfile = new Sio.MemoryStream(blob.)
-                await blob.DownloadToStreamAsync(file);
-                return File(file);
-            }
-            catch
-            {
-                return NotFound();
-            }
-        }
 
         // POST api/values
-        [HttpPost]
+        [HttpPost("upload")]
         public async Task<IActionResult> OnPostUploadAsync(IFormFile file)
         {
             try
             {
-                if (file != null)
+                if (file != null && _blobContainer != null)
                 {
                     CloudBlockBlob blob = _blobContainer.GetBlockBlobReference(file.FileName);
                     await blob.UploadFromStreamAsync(file.OpenReadStream());
@@ -91,18 +65,54 @@ namespace PicStorage.Controllers
             }
         }
 
-        // PUT api/values/5
-        [HttpPut("{id}")]
-        public void Put(int id, [FromBody] string value)
+        [HttpGet("download/{fileName}")]
+        public async Task<IActionResult> DownloadFile(string fileName)
         {
+            Sio.MemoryStream ms = new Sio.MemoryStream();
+            if (await _blobContainer.ExistsAsync())
+            {
+                CloudBlob file = _blobContainer.GetBlobReference(fileName);
+
+                if (await file.ExistsAsync())
+                {
+                    await file.DownloadToStreamAsync(ms);
+                    Sio.Stream blobStream = file.OpenReadAsync().Result;
+                    return File(blobStream, file.Properties.ContentType, file.Name);
+                }
+                else
+                {
+                    return Content("File does not exist");
+                }
+            }
+            else
+            {
+                return Content("Container does not exist");
+            }
         }
 
-        // DELETE api/values/5
-        [HttpDelete("{id}")]
-        public void Delete(int id)
-        {
-        }
 
+        [Route("delete/{fileName}")]
+        [HttpGet]
+        public async Task<bool> DeleteFile(string fileName)
+        {
+            try
+            {
+                if (await _blobContainer.ExistsAsync())
+                {
+                    CloudBlob file = _blobContainer.GetBlobReference(fileName);
+
+                    if (await file.ExistsAsync())
+                    {
+                        await file.DeleteAsync();
+                    }
+                }
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
         private string GetRandomBlobName(string filename)
         {
             string ext = Sio.Path.GetExtension(filename);
